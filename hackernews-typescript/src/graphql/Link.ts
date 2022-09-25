@@ -30,17 +30,17 @@ export const Link = objectType({
 export const LinkQuery = extendType({
     type: "Query",
     definition(t) {
-        t.nonNull.list.nonNull.field("feed", {
-            type: "Link",
+        t.nonNull.field("feed", {  // 1
+            type: "Feed",
             args: {
                 filter: stringArg(),
-                skip: intArg(),   // 1
+                skip: intArg(),
                 take: intArg(),
-                orderBy: arg({ type: list(nonNull(LinkOrderByInput)) }),  // 1
-
+                orderBy: arg({ type: list(nonNull(LinkOrderByInput)) }),
             },
-            resolve(parent, args, context) {
-                const where = args.filter   // 2
+            // @ts-ignore
+            async resolve(parent, args, context) {
+                const where = args.filter
                     ? {
                         OR: [
                             { description: { contains: args.filter } },
@@ -48,17 +48,29 @@ export const LinkQuery = extendType({
                         ],
                     }
                     : {};
-                return context.prisma.link.findMany({
-                    where,
-                    skip: args?.skip as number | undefined,    // 2
-                    take: args?.take as number | undefined,
-                    orderBy: args?.orderBy as Prisma.Enumerable<Prisma.LinkOrderByWithRelationInput> | undefined,  // 2
 
+                const links = await context.prisma.link.findMany({
+                    where,
+                    skip: args?.skip as number | undefined,
+                    take: args?.take as number | undefined,
+                    orderBy: args?.orderBy as
+                        | Prisma.Enumerable<Prisma.LinkOrderByWithRelationInput>
+                        | undefined,
                 });
+
+                const count = await context.prisma.link.count({ where });  // 2
+                const id = `main-feed:${JSON.stringify(args)}`;  // 3
+
+                return {  // 4
+                    links,
+                    count,
+                    id,
+                };
             },
-        })
-    }
+        });
+    },
 });
+
 
 export const LinkMutation = extendType({
     type: "Mutation",
@@ -102,4 +114,14 @@ export const LinkOrderByInput = inputObjectType({
 export const Sort = enumType({
     name: "Sort",
     members: ["asc", "desc"],
+});
+
+
+export const Feed = objectType({
+    name: "Feed",
+    definition(t) {
+        t.nonNull.list.nonNull.field("links", { type: Link }); // 1
+        t.nonNull.int("count"); // 2
+        t.id("id");  // 3
+    },
 });
